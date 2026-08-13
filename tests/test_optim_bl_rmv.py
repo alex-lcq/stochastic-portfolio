@@ -80,17 +80,19 @@ def test_robust_mv_weights_valid(returns_and_market):
 
 
 def test_robust_mv_kappa_zero_matches_markowitz(returns_and_market):
-    """κ=0 should collapse to standard mean-variance."""
+    """κ=0 should collapse to standard mean-variance (in annualised units)."""
     returns, _ = returns_and_market
-    w_robust = robust_max_sharpe_portfolio(returns, kappa=0.0, risk_aversion=1.0)
+    periods = 252
+    w_robust = robust_max_sharpe_portfolio(returns, kappa=0.0, risk_aversion=1.0,
+                                           periods_per_year=periods)
     import cvxpy as cp
     from spo.optim.mean_variance import estimate_covariance
-    cov = estimate_covariance(returns, method="ledoit_wolf")
-    mu = returns.mean().values
-    n = len(mu)
+    cov_ann = estimate_covariance(returns, method="ledoit_wolf") * periods
+    mu_ann = returns.mean().values * periods
+    n = len(mu_ann)
     w = cp.Variable(n)
     prob = cp.Problem(
-        cp.Maximize(mu @ w - 0.5 * cp.quad_form(w, cp.psd_wrap(cov))),
+        cp.Maximize(mu_ann @ w - 0.5 * cp.quad_form(w, cp.psd_wrap(cov_ann))),
         [cp.sum(w) == 1, w >= 0],
     )
     prob.solve()

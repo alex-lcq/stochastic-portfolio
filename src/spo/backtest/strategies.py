@@ -36,14 +36,21 @@ def black_litterman(
     **_,
 ) -> StrategyFn:
     def _fn(lookback: pd.DataFrame) -> pd.Series:
+        mw = market_weights
+        if mw is None:
+            # Inverse-vol weights computed from the lookback window.
+            # No look-ahead bias; overweights low-vol (typically large-cap)
+            # names, a reasonable market-cap proxy without external data.
+            vol = lookback.std()
+            mw = (1.0 / vol) / (1.0 / vol).sum()
         return black_litterman_portfolio(
-            lookback, market_weights=market_weights,
+            lookback, market_weights=mw,
             tau=tau, risk_aversion=risk_aversion,
         )
     return _fn
 
 
-def robust_mv(kappa: float = 1.0, risk_aversion: float = 2.5, max_weight: float = 0.10, **_) -> StrategyFn:
+def robust_mv(kappa: float = 3.0, risk_aversion: float = 2.5, max_weight: float = 0.10, **_) -> StrategyFn:
     def _fn(lookback: pd.DataFrame) -> pd.Series:
         return robust_max_sharpe_portfolio(lookback, kappa=kappa,
                                            risk_aversion=risk_aversion,

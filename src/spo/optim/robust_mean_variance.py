@@ -32,6 +32,11 @@ def robust_max_sharpe_portfolio(
     (the standard equity-market value) gives sensible results regardless of
     the return frequency. κ controls the uncertainty-ellipsoid radius
     (κ=0 collapses to standard Markowitz, larger κ is more defensive).
+
+    Calibration note: with daily data and a ~2-year lookback (n_obs≈504),
+    the uncertainty covariance is Σ_ann/2, so the break-even κ between
+    "concentrated" and "diversified" is roughly 1.2–2. Use κ≥3 to see a
+    meaningful shift toward min-variance; κ≈10 gives near-min-var behaviour.
     """
     returns = returns.dropna(axis=1)
     n_obs, n_assets = returns.shape
@@ -39,7 +44,10 @@ def robust_max_sharpe_portfolio(
 
     mu_hat = returns.mean().values * periods_per_year
     cov = estimate_covariance(returns, method=cov_method) * periods_per_year
-    cov_mu = cov / n_obs
+    # Correct estimation-error covariance for the annualised mean:
+    # Var(μ_ann) = T² × Var(μ_daily) = T × Σ_ann / n_obs
+    # (plain cov/n_obs understates the penalty by √T when using daily data)
+    cov_mu = cov * periods_per_year / n_obs
 
     sqrt_cov_mu = np.linalg.cholesky(cov_mu + 1e-10 * np.eye(n_assets))
 
