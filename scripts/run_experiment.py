@@ -68,15 +68,15 @@ def main() -> None:
         result = backtest(
             returns, strategy_fn,
             rebalance_freq=defaults["rebalance_freq"],
-            lookback=defaults["lookback"],
-            cost=defaults["cost"]
+            lookback=defaults["lookback_days"],
+            cost=defaults["cost_bps"]
         )
         all_results[label] = result
         net_returns_by_strategy[label] = result["net_returns"]
 
         s = summary(result["net_returns"])
         log.info("Ann.Ret=%.2f%%  Ann.Vol=%.2f%%  Sharpe=%.2f  MaxDD=%.2f%%",
-                s["Ann. Return"]*100, s["Ann. Vol"]*100,
+                s["Ann. Returns"]*100, s["Ann. Vol"]*100,
                 s["Sharpe"], s["Max DD"]*100)
     
     # Save pickled full results

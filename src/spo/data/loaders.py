@@ -2,7 +2,10 @@
 Price and universe loaders
 """
 from __future__ import annotations
+import io
 import logging
+import urllib.request
+import zipfile
 from pathlib import Path
 import pandas as pd
 import yaml
@@ -58,5 +61,58 @@ def fetch_prices(tickers: list[str], start: str, end: str, source: SOURCE="yfina
         prices = _fetch_yfinance(tickers, start, end)
     else:
         raise ValueError(f"Unsupported data source: {source}")
-    
+
     return prices.sort_index()
+
+
+def fetch_vix(start: str, end: str) -> pd.Series:
+    """
+    Fetch the CBOE VIX index level from yfinance.
+    """
+    import yfinance as yf
+
+    data = yf.download("^VIX", start=start, end=end, auto_adjust=True, progress=False)
+    vix = data["Close"]
+    if isinstance(vix, pd.DataFrame):
+        vix = vix.iloc[:, 0]
+    vix.index = pd.to_datetime(vix.index).tz_localize(None)
+    return vix.rename("VIX").sort_index()
+
+
+_FF_BASE_URL = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/{dataset}_CSV.zip"
+
+_FF_COLUMNS = {
+    "3": ["Mkt-RF", "SMB", "HML", "RF"],
+    "5": ["Mkt-RF", "SMB", "HML", "RMW", "CMA", "RF"],
+}
+
+
+def fetch_ff_factors(start: str, end: str, model: str = "5") -> pd.DataFrame:
+    """
+    Fetch daily Fama-French factors directly from Ken French's data library
+    (bypassing pandas-datareader's famafrench reader, which is currently
+    broken against pandas>=2.2 -- pandas-datareader#933). model="3": Mkt-RF,
+    SMB, HML, RF. model="5": adds RMW, CMA. Values are converted from
+    percent to decimal.
+    """
+    dataset = {
+        "3": "F-F_Research_Data_Factors_daily",
+        "5": "F-F_Research_Data_5_Factors_2x3_daily",
+    }[model]
+    columns = _FF_COLUMNS[model]
+
+    with urllib.request.urlopen(_FF_BASE_URL.format(dataset=dataset)) as resp:
+        raw = resp.read()
+    with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+        text = zf.read(zf.namelist()[0]).decode("latin-1")
+
+    # Data rows are "YYYYMMDD,val,val,...". Header/footer lines aren't.
+    rows = [
+        [v.strip() for v in line.split(",")]
+        for line in text.splitlines()
+        if line[:8].strip().isdigit() and len(line[:8].strip()) == 8
+    ]
+    ff = pd.DataFrame(rows, columns=["date", *columns])
+    ff["date"] = pd.to_datetime(ff["date"], format="%Y%m%d")
+    ff = ff.set_index("date").astype(float) / 100.0
+    return ff.sort_index().loc[start:end]

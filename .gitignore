@@ -14,4 +14,4 @@ data/processed/*
 .DS_Store
 dist/
 build/
-.pytest_cache/
+.pytest_cache/results/
